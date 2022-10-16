@@ -6,7 +6,9 @@ uses
   System.Generics.Collections,
   System.Net.HttpClient,
   System.Net.URLClient,
-  System.Classes, System.SysUtils;
+  System.Classes,
+  System.Json.Serializers,
+  System.SysUtils;
 
 type
 {$SCOPEDENUMS ON}
@@ -63,7 +65,8 @@ type
     procedure SetupQueryParameters(var AUrl: string);
     function BuildRequest(AHttpCli: THttpClient): IHTTPRequest;
   public
-    constructor Create;
+    constructor Create(const AUrl: string); overload;
+    constructor Create; overload;
     destructor Destroy; override;
     procedure AddHeader(const AName, AValue: string);
     procedure AddQueryParameter(const AName, AValue: string);
@@ -80,13 +83,25 @@ type
   TMandarinClient = class
   private
     FHttp: THttpClient;
-
+    FRequestCount: Integer;
+    procedure SetRequestCount(const Value: Integer);
   public
-    procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>);
+    procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>); virtual;
     procedure ExecuteAsync(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>); virtual;
-    constructor Create;
+    constructor Create; virtual;
     destructor Destroy; override;
+    property Http: THttpClient read FHttp write FHttp;
+    property RequestCount: Integer read FRequestCount write SetRequestCount;
+  end;
 
+  TMandarinClientJson = class(TMandarinClient)
+  private
+    FSerializer: TJsonSerializer;
+  public
+    procedure Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
+    procedure ExecuteAsync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
+    constructor Create; override;
+    destructor Destroy; override;
   end;
 
 implementation
@@ -121,7 +136,13 @@ end;
 
 constructor TMandarin.Create;
 begin
+  Self.Create('');
+end;
+
+constructor TMandarin.Create(const AUrl: string);
+begin
   inherited Create;
+  FUrl := AUrl;
   FRequestMethod := 'GET';
   FHeaders := TDictionary<string, string>.Create();
   FUrlSegments := TDictionary<string, string>.Create();
@@ -235,6 +256,7 @@ constructor TMandarinClient.Create;
 begin
   inherited;
   FHttp := THttpClient.Create;
+  FRequestCount := 0;
 end;
 
 destructor TMandarinClient.Destroy;
@@ -249,7 +271,12 @@ var
   LHttpResponse: IHTTPResponse;
 begin
   LHttpRequest := AMandarin.BuildRequest(FHttp);
-  LHttpResponse := FHttp.Execute(LHttpRequest);
+  Inc(FRequestCount);
+  try
+    LHttpResponse := FHttp.Execute(LHttpRequest);
+  finally
+    Dec(FRequestCount);
+  end;
   if Assigned(AResponseCallback) then
     AResponseCallback(LHttpResponse);
 end;
@@ -258,6 +285,7 @@ procedure TMandarinClient.ExecuteAsync(AMandarin: IMandarin; AResponseCallback: 
 var
   LHttpRequest: IHTTPRequest;
 begin
+  Inc(FRequestCount);
   LHttpRequest := AMandarin.BuildRequest(FHttp);
   FHttp.BeginExecute(
     procedure(const ASyncResult: IAsyncResult)
@@ -265,9 +293,53 @@ begin
       LHttpResponse: IHTTPResponse;
     begin
       LHttpResponse := FHttp.EndAsyncHTTP(ASyncResult);
+
       if Assigned(AResponseCallback) then
         AResponseCallback(LHttpResponse);
+      Dec(FRequestCount);
     end, LHttpRequest, nil, nil);
+
+end;
+
+procedure TMandarinClient.SetRequestCount(const Value: Integer);
+begin
+  FRequestCount := Value;
+end;
+
+{ TMandarinClientJson }
+
+constructor TMandarinClientJson.Create;
+begin
+  inherited;
+  FSerializer := TJsonSerializer.Create();
+end;
+
+destructor TMandarinClientJson.Destroy;
+begin
+  FSerializer.Free;
+  inherited;
+end;
+
+procedure TMandarinClientJson.Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>);
+begin
+  inherited Execute(AMandarin,
+    procedure(AHttp: IHTTPResponse)
+    begin
+      var
+      LData := FSerializer.Deserialize<T>(AHttp.ContentAsString());
+      AResponseCallback(LData, AHttp);
+    end);
+end;
+
+procedure TMandarinClientJson.ExecuteAsync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>);
+begin
+  inherited ExecuteAsync(AMandarin,
+    procedure(AHttp: IHTTPResponse)
+    begin
+      var
+      LData := FSerializer.Deserialize<T>(AHttp.ContentAsString());
+      AResponseCallback(LData, AHttp);
+    end);
 end;
 
 end.
