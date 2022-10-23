@@ -83,7 +83,8 @@ type
 
   IMandarinExt = interface(IMandarin)
     ['{0668D619-DEC1-4713-AEFF-A89F0BB67CC1}']
-    procedure Execute(AResponseCallback: TProc<IHTTPResponse>);
+    procedure Execute(AResponseCallback: TProc<IHTTPResponse>; AIsSync: Boolean = True);
+    procedure ExecuteSync(AResponseCallback: TProc<IHTTPResponse>);
     procedure ExecuteAsync(AResponseCallback: TProc<IHTTPResponse>);
     //
     function AddHeader(const AName, AValue: string): IMandarinExt;
@@ -97,7 +98,8 @@ type
   private
     FClient: TMandarinClient;
   public
-    procedure Execute(AResponseCallback: TProc<IHTTPResponse>);
+    procedure Execute(AResponseCallback: TProc<IHTTPResponse>; AIsSync: Boolean = True);
+    procedure ExecuteSync(AResponseCallback: TProc<IHTTPResponse>);
     procedure ExecuteAsync(AResponseCallback: TProc<IHTTPResponse>);
     constructor Create(AClient: TMandarinClient; const ABaseUrl: string = '');
     //
@@ -112,7 +114,9 @@ type
     FRequestCount: Integer;
     procedure SetRequestCount(const Value: Integer);
   public
-    procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>); virtual;
+    procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
+      const AIsSyncMode: Boolean = True); virtual;
+    procedure ExecuteSync(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>); virtual;
     procedure ExecuteAsync(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>); virtual;
     function NewMandarin(const ABaseUrl: string = ''): IMandarinExt;
     constructor Create; virtual;
@@ -123,7 +127,8 @@ type
 
   IMandarinExtJson<T> = interface(IMandarin)
     ['{0668D619-DEC1-4713-AEFF-A89F0BB67CC1}']
-    procedure Execute(AResponseCallback: TProc<T, IHTTPResponse>);
+    procedure Execute(AResponseCallback: TProc<T, IHTTPResponse>; const AIsSyncMode: Boolean = True);
+    procedure ExecuteSync(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>);
     procedure ExecuteAsync(AResponseCallback: TProc<T, IHTTPResponse>);
     //
     function AddHeader(const AName, AValue: string): IMandarinExtJson<T>;
@@ -137,7 +142,8 @@ type
   private
     FClient: TMandarinClientJson;
   public
-    procedure Execute(AResponseCallback: TProc<T, IHTTPResponse>);
+    procedure Execute(AResponseCallback: TProc<T, IHTTPResponse>; const AIsSyncMode: Boolean = True);
+    procedure ExecuteSync(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>);
     procedure ExecuteAsync(AResponseCallback: TProc<T, IHTTPResponse>);
     constructor Create(AClient: TMandarinClientJson; const ABaseUrl: string = '');
     //
@@ -151,7 +157,9 @@ type
     FSerializer: TJsonSerializer;
   public
     function NewMandarin<T>(const ABaseUrl: string = ''): IMandarinExtJson<T>;
-    procedure Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
+    procedure Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>;
+      const AIsSyncMode: Boolean = True); reintroduce;
+    procedure ExecuteSync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
     procedure ExecuteAsync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
     constructor Create; override;
     destructor Destroy; override;
@@ -321,20 +329,13 @@ begin
   inherited;
 end;
 
-procedure TMandarinClient.Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>);
-var
-  LHttpRequest: IHTTPRequest;
-  LHttpResponse: IHTTPResponse;
+procedure TMandarinClient.Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
+const AIsSyncMode: Boolean = True);
 begin
-  LHttpRequest := AMandarin.BuildRequest(FHttp);
-  Inc(FRequestCount);
-  try
-    LHttpResponse := FHttp.Execute(LHttpRequest);
-  finally
-    Dec(FRequestCount);
-  end;
-  if Assigned(AResponseCallback) then
-    AResponseCallback(LHttpResponse);
+  if AIsSyncMode then
+    Execute(AMandarin, AResponseCallback)
+  else
+    ExecuteAsync(AMandarin, AResponseCallback);
 end;
 
 procedure TMandarinClient.ExecuteAsync(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>);
@@ -355,6 +356,22 @@ begin
       Dec(FRequestCount);
     end, LHttpRequest, nil, nil);
 
+end;
+
+procedure TMandarinClient.ExecuteSync(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>);
+var
+  LHttpRequest: IHTTPRequest;
+  LHttpResponse: IHTTPResponse;
+begin
+  LHttpRequest := AMandarin.BuildRequest(FHttp);
+  Inc(FRequestCount);
+  try
+    LHttpResponse := FHttp.Execute(LHttpRequest);
+  finally
+    Dec(FRequestCount);
+  end;
+  if Assigned(AResponseCallback) then
+    AResponseCallback(LHttpResponse);
 end;
 
 function TMandarinClient.NewMandarin(const ABaseUrl: string = ''): IMandarinExt;
@@ -381,9 +398,18 @@ begin
   inherited;
 end;
 
-procedure TMandarinClientJson.Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>);
+procedure TMandarinClientJson.Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>;
+const AIsSyncMode: Boolean);
 begin
-  inherited Execute(AMandarin,
+  if AIsSyncMode then
+    ExecuteSync<T>(AMandarin, AResponseCallback)
+  else
+    ExecuteAsync<T>(AMandarin, AResponseCallback);
+end;
+
+procedure TMandarinClientJson.ExecuteAsync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>);
+begin
+  inherited ExecuteAsync(AMandarin,
     procedure(AHttp: IHTTPResponse)
     var
       LData: T;
@@ -393,9 +419,9 @@ begin
     end);
 end;
 
-procedure TMandarinClientJson.ExecuteAsync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>);
+procedure TMandarinClientJson.ExecuteSync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>);
 begin
-  inherited ExecuteAsync(AMandarin,
+  inherited ExecuteSync(AMandarin,
     procedure(AHttp: IHTTPResponse)
     var
       LData: T;
@@ -434,14 +460,19 @@ begin
   FClient := AClient;
 end;
 
-procedure TMandarinExt.Execute(AResponseCallback: TProc<IHTTPResponse>);
+procedure TMandarinExt.Execute(AResponseCallback: TProc<IHTTPResponse>; AIsSync: Boolean);
 begin
-  FClient.Execute(Self, AResponseCallback);
+  FClient.Execute(Self, AResponseCallback, AIsSync);
 end;
 
 procedure TMandarinExt.ExecuteAsync(AResponseCallback: TProc<IHTTPResponse>);
 begin
   FClient.ExecuteAsync(Self, AResponseCallback);
+end;
+
+procedure TMandarinExt.ExecuteSync(AResponseCallback: TProc<IHTTPResponse>);
+begin
+  FClient.ExecuteSync(Self, AResponseCallback);
 end;
 
 { TMandarinExtJson<T> }
@@ -471,14 +502,19 @@ begin
   FUrl := ABaseUrl;
 end;
 
-procedure TMandarinExtJson<T>.Execute(AResponseCallback: TProc<T, IHTTPResponse>);
+procedure TMandarinExtJson<T>.Execute(AResponseCallback: TProc<T, IHTTPResponse>; const AIsSyncMode: Boolean);
 begin
-  FClient.Execute<T>(Self, AResponseCallback);
+  FClient.Execute<T>(Self, AResponseCallback, AIsSyncMode);
 end;
 
 procedure TMandarinExtJson<T>.ExecuteAsync(AResponseCallback: TProc<T, IHTTPResponse>);
 begin
   FClient.ExecuteAsync<T>(Self, AResponseCallback);
+end;
+
+procedure TMandarinExtJson<T>.ExecuteSync(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>);
+begin
+  FClient.ExecuteSync<T>(Self, AResponseCallback);
 end;
 
 end.
