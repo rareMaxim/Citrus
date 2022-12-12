@@ -9,6 +9,7 @@ uses
   System.Classes,
   System.JSON,
   System.JSON.Serializers,
+  System.SyncObjs,
   System.SysUtils;
 
 type
@@ -94,6 +95,7 @@ type
     function AddHeader(const AName, AValue: string): IMandarinExt;
     function AddQueryParameter(const AName, AValue: string): IMandarinExt;
     function AddUrlSegment(const AName, AValue: string): IMandarinExt;
+    function SetRequestMethod(const AValue: string): IMandarinExt;
   end;
 
   TMandarinClient = class;
@@ -110,6 +112,7 @@ type
     function AddHeader(const AName, AValue: string): IMandarinExt;
     function AddQueryParameter(const AName, AValue: string): IMandarinExt;
     function AddUrlSegment(const AName, AValue: string): IMandarinExt;
+    function SetRequestMethod(const AValue: string): IMandarinExt;
   end;
 
   TMandarinClient = class
@@ -121,7 +124,7 @@ type
       const AIsSyncMode: Boolean = True); virtual;
     procedure ExecuteSync(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>); virtual;
     procedure ExecuteAsync(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>); virtual;
-    function NewMandarin(const ABaseUrl: string = ''): IMandarinExt;
+    function NewMandarin(const ABaseUrl: string = ''): IMandarinExt; overload;
     constructor Create; virtual;
     destructor Destroy; override;
     property Http: THttpClient read FHttp write FHttp;
@@ -138,6 +141,7 @@ type
     function AddQueryParameter(const AName, AValue: string): IMandarinExtJson<T>;
     function AddUrlSegment(const AName, AValue: string): IMandarinExtJson<T>;
     function AddJsonPair(const AName, AValue: string): IMandarinExtJson<T>;
+    function SetBody(ABody: TObject): IMandarinExtJson<T>;
     function SetBodyRaw(const AValue: string): IMandarinExtJson<T>;
     function SetRequestMethod(const AValue: string): IMandarinExtJson<T>;
   end;
@@ -159,13 +163,15 @@ type
     function AddJsonPair(const AName, AValue: string): IMandarinExtJson<T>;
     function SetBodyRaw(const AValue: string): IMandarinExtJson<T>;
     function SetRequestMethod(const AValue: string): IMandarinExtJson<T>;
+    function SetBody(ABody: TObject): IMandarinExtJson<T>;
   end;
 
   TMandarinClientJson = class(TMandarinClient)
   private
     FSerializer: TJsonSerializer;
   public
-    function NewMandarin<T>(const ABaseUrl: string = ''): IMandarinExtJson<T>;
+    function NewMandarin(const ABaseUrl: string = ''): IMandarinExt; overload;
+    function NewMandarin<T>(const ABaseUrl: string = ''): IMandarinExtJson<T>; overload;
     procedure Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>;
       const AIsSyncMode: Boolean = True); reintroduce;
     procedure ExecuteSync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
@@ -173,6 +179,26 @@ type
     constructor Create; override;
     destructor Destroy; override;
     property Serializer: TJsonSerializer read FSerializer write FSerializer;
+  end;
+
+  TMandarinLongPooling = class
+  private
+    FCli: TMandarinClient;
+    FInterval: Integer;
+    FEvent: TEvent;
+    FWorker: TThread;
+    FOnGetMandarinCallback: TFunc<IMandarin>;
+    FOnResponseCallback: TProc<IHTTPResponse>;
+  protected
+    procedure Go;
+  public
+    constructor Create(AClient: TMandarinClient);
+    procedure Start; virtual;
+    procedure Stop;
+    destructor Destroy; override;
+    property Interval: Integer read FInterval write FInterval;
+    property OnGetMandarinCallback: TFunc<IMandarin> read FOnGetMandarinCallback write FOnGetMandarinCallback;
+    property OnResponseCallback: TProc<IHTTPResponse> read FOnResponseCallback write FOnResponseCallback;
   end;
 
 implementation
@@ -186,6 +212,7 @@ type
     class procedure Synchronize(const AThread: TThread; AThreadProc: TProc);
   end;
 
+  {TMandarin}
 function TMandarin.AddQueryParameter(const AName, AValue: string): IMandarin;
 begin
   FQueryParameters.AddOrSetValue(AName, AValue);
@@ -287,6 +314,7 @@ begin
   FUrl := Value;
 end;
 
+{TMandarinBody}
 procedure TMandarinBody.BuildRaw(var ARequest: IHTTPRequest);
 begin
   ARequest.SourceStream := TStringStream.Create(UTF8String(FRaw));
@@ -332,6 +360,7 @@ begin
       end);
 end;
 
+{TMandarinClient}
 constructor TMandarinClient.Create;
 begin
   inherited;
@@ -422,7 +451,8 @@ begin
       LData: T;
     begin
       LData := FSerializer.Deserialize<T>(AHttp.ContentAsString(TEncoding.UTF8));
-      AResponseCallback(LData, AHttp);
+      if Assigned(AResponseCallback) then
+        AResponseCallback(LData, AHttp);
     end);
 end;
 
@@ -434,8 +464,14 @@ begin
       LData: T;
     begin
       LData := FSerializer.Deserialize<T>(AHttp.ContentAsString(TEncoding.UTF8));
-      AResponseCallback(LData, AHttp);
+      if Assigned(AResponseCallback) then
+        AResponseCallback(LData, AHttp);
     end);
+end;
+
+function TMandarinClientJson.NewMandarin(const ABaseUrl: string): IMandarinExt;
+begin
+  Result := inherited NewMandarin(ABaseUrl);
 end;
 
 function TMandarinClientJson.NewMandarin<T>(const ABaseUrl: string): IMandarinExtJson<T>;
@@ -443,6 +479,7 @@ begin
   Result := TMandarinExtJson<T>.Create(Self, ABaseUrl);
 end;
 
+{TMandarinExt}
 function TMandarinExt.AddHeader(const AName, AValue: string): IMandarinExt;
 begin
   inherited AddHeader(AName, AValue);
@@ -480,6 +517,12 @@ end;
 procedure TMandarinExt.ExecuteSync(AResponseCallback: TProc<IHTTPResponse>);
 begin
   FClient.ExecuteSync(Self, AResponseCallback);
+end;
+
+function TMandarinExt.SetRequestMethod(const AValue: string): IMandarinExt;
+begin
+  inherited SetRequestMethod(AValue);
+  Result := Self;
 end;
 
 { TMandarinExtJson<T> }
@@ -540,6 +583,21 @@ begin
   FClient.ExecuteSync<T>(Self, AResponseCallback);
 end;
 
+function TMandarinExtJson<T>.SetBody(ABody: TObject): IMandarinExtJson<T>;
+var
+  LBodyToJson: string;
+  LSerializer: TJsonSerializer;
+begin
+  LSerializer := TJsonSerializer.Create;
+  try
+    LBodyToJson := LSerializer.Serialize<TObject>(ABody);
+    SetBodyRaw(LBodyToJson);
+    Result := Self;
+  finally
+    LSerializer.Free;
+  end;
+end;
+
 function TMandarinExtJson<T>.SetBodyRaw(const AValue: string): IMandarinExtJson<T>;
 begin
   inherited Body.Raw := AValue;
@@ -550,6 +608,60 @@ function TMandarinExtJson<T>.SetRequestMethod(const AValue: string): IMandarinEx
 begin
   inherited SetRequestMethod(AValue);
   Result := Self;
+end;
+
+{TMandarinLongPooling}
+constructor TMandarinLongPooling.Create(AClient: TMandarinClient);
+begin
+  inherited Create;
+  FInterval := 1000;
+  FEvent := TEvent.Create();
+  FCli := AClient;
+end;
+
+destructor TMandarinLongPooling.Destroy;
+begin
+  FEvent.Free;
+  inherited;
+end;
+
+procedure TMandarinLongPooling.Go;
+var
+  LMandarin: IMandarin;
+begin
+  if Assigned(FOnGetMandarinCallback) then
+    LMandarin := FOnGetMandarinCallback();
+  FCli.ExecuteAsync(LMandarin, FOnResponseCallback);
+end;
+
+procedure TMandarinLongPooling.Start;
+begin
+  if Assigned(FWorker) then
+    Exit;
+  FWorker := TThread.CreateAnonymousThread(
+    procedure
+    var
+      lWaitResult: TWaitResult;
+    begin
+      while True do
+      begin
+        lWaitResult := FEvent.WaitFor(FInterval);
+        if lWaitResult = wrTimeout then
+          Go
+        else
+          Break;
+      end;
+    end);
+  FWorker.FreeOnTerminate := False;
+  FWorker.Start;
+end;
+
+procedure TMandarinLongPooling.Stop;
+begin
+  FEvent.SetEvent;
+  if Assigned(FWorker) then
+    FWorker.WaitFor;
+  FreeAndNil(FWorker);
 end;
 
 end.
