@@ -52,6 +52,11 @@ type
     property Body: TMandarinBody read GetBody;
   end;
 
+  IAuthenticator = interface
+    ['{C400FE4B-8C97-4D91-B66E-0EF3C1D9FF4D}']
+    procedure UpgradeMandarin(AMandarin: IMandarin);
+  end;
+
   TMandarin = class(TInterfacedObject, IMandarin)
   private
     FHeaders: TDictionary<string, string>;
@@ -77,7 +82,6 @@ type
     function AddHeader(const AName, AValue: string): IMandarin;
     function AddQueryParameter(const AName, AValue: string): IMandarin;
     function AddUrlSegment(const AName, AValue: string): IMandarin;
-
     property Url: string read GetUrl write SetUrl;
     property Headers: TDictionary<string, string> read FHeaders;
     property UrlSegments: TDictionary<string, string> read FUrlSegments;
@@ -119,6 +123,8 @@ type
   private
     FHttp: THttpClient;
     FOnBeforeExcecute: TProc<IMandarin>;
+    FAuthenticator: IAuthenticator;
+    procedure SetAuthenticator(const Value: IAuthenticator);
   public
     procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
       const AIsSyncMode: Boolean = True); virtual;
@@ -128,6 +134,7 @@ type
     constructor Create; virtual;
     destructor Destroy; override;
     property Http: THttpClient read FHttp write FHttp;
+    property Authenticator: IAuthenticator read FAuthenticator write SetAuthenticator;
     property OnBeforeExcecute: TProc<IMandarin> read FOnBeforeExcecute write FOnBeforeExcecute;
   end;
 
@@ -406,6 +413,8 @@ var
   LHttpRequest: IHTTPRequest;
   LHttpResponse: IHTTPResponse;
 begin
+  if Assigned(FAuthenticator) then
+    FAuthenticator.UpgradeMandarin(AMandarin);
   if Assigned(OnBeforeExcecute) then
     OnBeforeExcecute(AMandarin);
   LHttpRequest := AMandarin.BuildRequest(FHttp);
@@ -418,6 +427,11 @@ end;
 function TMandarinClient.NewMandarin(const ABaseUrl: string = ''): IMandarinExt;
 begin
   Result := TMandarinExt.Create(Self, ABaseUrl);
+end;
+
+procedure TMandarinClient.SetAuthenticator(const Value: IAuthenticator);
+begin
+  FAuthenticator := Value;
 end;
 
 { TMandarinClientJson }
