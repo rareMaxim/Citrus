@@ -22,7 +22,6 @@ type
   private
     FRaw: string;
     FType: TMandarinBodyType;
-    FJson: TJSONObject;
     procedure SetRaw(const Value: string);
   protected
     procedure UpgradeHttpRequest(var ARequest: IHTTPRequest);
@@ -31,7 +30,6 @@ type
     constructor Create;
     property Raw: string read FRaw write SetRaw;
     property &Type: TMandarinBodyType read FType write FType;
-    property JSON: TJSONObject read FJson;
   end;
 
   IMandarin = interface
@@ -329,8 +327,7 @@ end;
 
 constructor TMandarinBody.Create;
 begin
-  inherited;
-  FJson := TJSONObject.Create;
+  inherited Create();
   FRaw := '';
   FType := TMandarinBodyType.None;
 end;
