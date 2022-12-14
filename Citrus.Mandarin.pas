@@ -322,7 +322,8 @@ end;
 {TMandarinBody}
 procedure TMandarinBody.BuildRaw(var ARequest: IHTTPRequest);
 begin
-  ARequest.SourceStream := TStringStream.Create(UTF8String(FRaw));
+  if not FRaw.IsEmpty then
+    ARequest.SourceStream := TStringStream.Create(UTF8String(FRaw));
 end;
 
 constructor TMandarinBody.Create;
@@ -391,17 +392,23 @@ procedure TMandarinClient.ExecuteAsync(AMandarin: IMandarin; AResponseCallback: 
 var
   LHttpRequest: IHTTPRequest;
 begin
-  LHttpRequest := AMandarin.BuildRequest(FHttp);
+  if Assigned(FAuthenticator) then
+    FAuthenticator.UpgradeMandarin(AMandarin);
   if Assigned(OnBeforeExcecute) then
     OnBeforeExcecute(AMandarin);
+  LHttpRequest := AMandarin.BuildRequest(FHttp);
   FHttp.BeginExecute(
     procedure(const ASyncResult: IAsyncResult)
     var
       LHttpResponse: IHTTPResponse;
     begin
-      LHttpResponse := FHttp.EndAsyncHTTP(ASyncResult);
-      if Assigned(AResponseCallback) then
-        AResponseCallback(LHttpResponse);
+      try
+        LHttpResponse := FHttp.EndAsyncHTTP(ASyncResult);
+        if Assigned(AResponseCallback) then
+          AResponseCallback(LHttpResponse);
+      finally
+        LHttpRequest.SourceStream.Free;
+      end;
     end, LHttpRequest, nil, nil);
 end;
 
@@ -416,9 +423,14 @@ begin
     OnBeforeExcecute(AMandarin);
   LHttpRequest := AMandarin.BuildRequest(FHttp);
 
-  LHttpResponse := FHttp.Execute(LHttpRequest);
-  if Assigned(AResponseCallback) then
-    AResponseCallback(LHttpResponse);
+  try
+    LHttpResponse := FHttp.Execute(LHttpRequest);
+    if Assigned(AResponseCallback) then
+      AResponseCallback(LHttpResponse);
+  finally
+    LHttpRequest.SourceStream.Free;
+  end;
+
 end;
 
 function TMandarinClient.NewMandarin(const ABaseUrl: string = ''): IMandarinExt;
