@@ -171,6 +171,11 @@ type
     function SetBody(ABody: TObject): IMandarinExtJson<T>;
   end;
 
+  IMandarinBuider = interface
+    ['{D2AD2C5B-D245-48A7-8EF3-E3E959FA966B}']
+    function Build: IMandarin;
+  end;
+
   TMandarinClientJson = class(TMandarinClient)
   private
     FSerializer: TJsonSerializer;
@@ -204,6 +209,11 @@ type
     property Interval: Integer read FInterval write FInterval;
     property OnGetMandarinCallback: TFunc<IMandarin> read FOnGetMandarinCallback write FOnGetMandarinCallback;
     property OnResponseCallback: TProc<IHTTPResponse> read FOnResponseCallback write FOnResponseCallback;
+  end;
+
+  IMandarinBodyBuider = interface
+    ['{D2AD2C5B-D245-48A7-8EF3-E3E959FA966B}']
+    function BuildBody: string;
   end;
 
 implementation
