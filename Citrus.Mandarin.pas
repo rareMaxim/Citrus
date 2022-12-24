@@ -28,6 +28,7 @@ type
     procedure BuildRaw(var ARequest: IHTTPRequest);
   public
     constructor Create;
+    function AddJsonPair(const AName, AValue: string): TMandarinBody;
     property Raw: string read FRaw write SetRaw;
     property &Type: TMandarinBodyType read FType write FType;
   end;
@@ -330,6 +331,22 @@ begin
 end;
 
 {TMandarinBody}
+function TMandarinBody.AddJsonPair(const AName, AValue: string): TMandarinBody;
+var
+  LJson: TJSONObject;
+begin
+  LJson := TJSONObject.ParseJSONValue(FRaw) as TJSONObject;
+  if LJson = nil then
+    LJson := TJSONObject.Create;
+  try
+    LJson.AddPair(AName, AValue);
+    FRaw := LJson.ToJSON;
+  finally
+    LJson.Free;
+  end;
+  Result := Self;
+end;
+
 procedure TMandarinBody.BuildRaw(var ARequest: IHTTPRequest);
 begin
   if not FRaw.IsEmpty then
@@ -567,18 +584,8 @@ begin
 end;
 
 function TMandarinExtJson<T>.AddJsonPair(const AName, AValue: string): IMandarinExtJson<T>;
-var
-  LJson: TJSONObject;
 begin
-  LJson := TJSONObject.ParseJSONValue(Body.Raw) as TJSONObject;
-  if LJson = nil then
-    LJson := TJSONObject.Create;
-  try
-    LJson.AddPair(AName, AValue);
-    Body.Raw := LJson.ToJSON;
-  finally
-    LJson.Free;
-  end;
+  Body.AddJsonPair(AName, AValue);
   Result := Self;
 end;
 
