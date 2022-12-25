@@ -259,7 +259,7 @@ constructor TMandarin.Create(const AUrl: string);
 begin
   inherited Create;
   FUrl := AUrl;
-  FRequestMethod := 'GET';
+  FRequestMethod := sHTTPMethodGet;
   FHeaders := TDictionary<string, string>.Create();
   FUrlSegments := TDictionary<string, string>.Create();
   FQueryParameters := TDictionary<string, string>.Create();
@@ -296,9 +296,7 @@ begin
   Result := FUrl;
 end;
 
-procedure TMandarin.SetRequestMethod(
-
-  const Value: string);
+procedure TMandarin.SetRequestMethod(const Value: string);
 begin
   FRequestMethod := Value;
 end;
@@ -335,6 +333,7 @@ function TMandarinBody.AddJsonPair(const AName, AValue: string): TMandarinBody;
 var
   LJson: TJSONObject;
 begin
+  FType := TMandarinBodyType.Raw;
   LJson := TJSONObject.ParseJSONValue(FRaw) as TJSONObject;
   if LJson = nil then
     LJson := TJSONObject.Create;
