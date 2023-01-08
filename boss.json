@@ -1,0 +1,9 @@
+{
+	"name": "Citrus",
+	"description": "REST for me)",
+	"version": "0.0.1",
+	"homepage": "https://github.com/rareMaxim/Citrus",
+	"mainsrc": ".",
+	"projects": [],
+	"dependencies": {}
+}
