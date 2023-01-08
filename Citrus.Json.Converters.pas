@@ -6,6 +6,7 @@ uses
   System.Json.Readers,
   System.Json.Serializers,
   System.Json.Writers,
+  System.Json.Converters,
   System.Rtti,
   System.TypInfo;
 
@@ -14,6 +15,14 @@ type
   // Converter for UnixTime
   // --------------------------------------------------------------------- //
   TJsonUnixTimeConverter = class(TJsonConverter)
+  public
+    procedure WriteJson(const AWriter: TJsonWriter; const AValue: TValue; const ASerializer: TJsonSerializer); override;
+    function ReadJson(const AReader: TJsonReader; ATypeInf: PTypeInfo; const AExistingValue: TValue;
+      const ASerializer: TJsonSerializer): TValue; override;
+    function CanConvert(ATypeInf: PTypeInfo): Boolean; override;
+  end;
+
+  TJsonToJsonObjectConverter = class(TJsonConverter)
   public
     procedure WriteJson(const AWriter: TJsonWriter; const AValue: TValue; const ASerializer: TJsonSerializer); override;
     function ReadJson(const AReader: TJsonReader; ATypeInf: PTypeInfo; const AExistingValue: TValue;
@@ -48,6 +57,28 @@ procedure TJsonUnixTimeConverter.WriteJson(const AWriter: TJsonWriter; const AVa
   const ASerializer: TJsonSerializer);
 begin
   AWriter.WriteValue(DateTimeToUnix(AValue.AsType<TDateTime>(), True));
+end;
+
+{ TJsonToJsonObjectConverter }
+
+function TJsonToJsonObjectConverter.CanConvert(ATypeInf: PTypeInfo): Boolean;
+begin
+  Result := True;
+end;
+
+function TJsonToJsonObjectConverter.ReadJson(const AReader: TJsonReader; ATypeInf: PTypeInfo;
+  const AExistingValue: TValue; const ASerializer: TJsonSerializer): TValue;
+var
+  x: string;
+begin
+  x := AReader.Value.ToString;
+end;
+
+procedure TJsonToJsonObjectConverter.WriteJson(const AWriter: TJsonWriter; const AValue: TValue;
+  const ASerializer: TJsonSerializer);
+begin
+  inherited;
+
 end;
 
 end.
