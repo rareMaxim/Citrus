@@ -123,7 +123,10 @@ type
     FHttp: THttpClient;
     FOnBeforeExcecute: TProc<IMandarin>;
     FAuthenticator: IAuthenticator;
+    FOnReadContentCallback: TFunc<IHTTPResponse, string>;
     procedure SetAuthenticator(const Value: IAuthenticator);
+  protected
+    function DoReadContent(AHttpResponse: IHTTPResponse): string;
   public
     procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
       const AIsSyncMode: Boolean = True); virtual;
@@ -135,6 +138,8 @@ type
     property Http: THttpClient read FHttp write FHttp;
     property Authenticator: IAuthenticator read FAuthenticator write SetAuthenticator;
     property OnBeforeExcecute: TProc<IMandarin> read FOnBeforeExcecute write FOnBeforeExcecute;
+    property OnReadContentCallback: TFunc<IHTTPResponse, string> read FOnReadContentCallback
+      write FOnReadContentCallback;
   end;
 
   IMandarinExtJson<T> = interface(IMandarin)
@@ -405,6 +410,14 @@ begin
   inherited;
 end;
 
+function TMandarinClient.DoReadContent(AHttpResponse: IHTTPResponse): string;
+begin
+  if Assigned(OnReadContentCallback) then
+    Result := OnReadContentCallback(AHttpResponse)
+  else
+    Result := AHttpResponse.ContentAsString(TEncoding.UTF8);
+end;
+
 procedure TMandarinClient.Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
 const AIsSyncMode: Boolean = True);
 begin
@@ -499,7 +512,7 @@ begin
     var
       LData: T;
     begin
-      LData := FSerializer.Deserialize<T>(AHttp.ContentAsString(TEncoding.UTF8));
+      LData := FSerializer.Deserialize<T>(DoReadContent(AHttp));
       if Assigned(AResponseCallback) then
         AResponseCallback(LData, AHttp);
     end);
@@ -512,7 +525,7 @@ begin
     var
       LData: T;
     begin
-      LData := FSerializer.Deserialize<T>(AHttp.ContentAsString(TEncoding.UTF8));
+      LData := FSerializer.Deserialize<T>(DoReadContent(AHttp));
       if Assigned(AResponseCallback) then
         AResponseCallback(LData, AHttp);
     end);
