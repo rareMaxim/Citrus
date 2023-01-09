@@ -1,14 +1,15 @@
-unit Citrus.Json.Converters;
+﻿unit Citrus.Json.Converters;
 
 interface
 
 uses
+  System.Json,
   System.Json.Readers,
   System.Json.Serializers,
   System.Json.Writers,
   System.Json.Converters,
   System.Rtti,
-  System.TypInfo;
+  System.TypInfo, System.SysUtils;
 
 type
   // --------------------------------------------------------------------- //
@@ -30,10 +31,15 @@ type
     function CanConvert(ATypeInf: PTypeInfo): Boolean; override;
   end;
 
+  TJsonReaderToValue = class
+  public
+    class procedure Parse(AReader: TJsonReader; var AJObj: TJSONObject);
+  end;
+
 implementation
 
 uses
-  System.DateUtils;
+  System.DateUtils, System.Json.Types;
 
 { TJsonUnixTimeConverter }
 
@@ -63,15 +69,25 @@ end;
 
 function TJsonToJsonObjectConverter.CanConvert(ATypeInf: PTypeInfo): Boolean;
 begin
-  Result := True;
+  Result := ATypeInf.Name = TJSONObject.ClassName;
 end;
 
 function TJsonToJsonObjectConverter.ReadJson(const AReader: TJsonReader; ATypeInf: PTypeInfo;
   const AExistingValue: TValue; const ASerializer: TJsonSerializer): TValue;
 var
-  x: string;
+  x: TJsonReaderToValue;
+  res: TJSONObject;
+  xx: string;
 begin
-  x := AReader.Value.ToString;
+  x := TJsonReaderToValue.Create;
+  try
+    res := TJSONObject.Create;
+    x.Parse(AReader, res);
+    xx := res.ToJSON;
+    Writeln(xx);
+  finally
+    x.Free;
+  end;
 end;
 
 procedure TJsonToJsonObjectConverter.WriteJson(const AWriter: TJsonWriter; const AValue: TValue;
@@ -79,6 +95,81 @@ procedure TJsonToJsonObjectConverter.WriteJson(const AWriter: TJsonWriter; const
 begin
   inherited;
 
+end;
+
+{ TJsonReaderToValue }
+
+class procedure TJsonReaderToValue.Parse(AReader: TJsonReader; var AJObj: TJSONObject);
+var
+  lPropertyName: string;
+begin
+  while AReader.Read do
+  begin
+    Writeln(Format('[%d %d]: %s', [AReader.LineNumber, AReader.GetLinePosition, AReader.Path]));
+    case AReader.TokenType of
+      TJsonToken.None:
+        ;
+      TJsonToken.StartObject:
+        begin
+          var
+          LJObj := AJObj.AddPair(lPropertyName, TJSONObject.Create as TJSONValue);
+          Parse(AReader, LJObj);
+        end;
+      TJsonToken.StartArray:
+        begin
+          var
+          LJObj := AJObj.AddPair(lPropertyName, TJSONArray.Create as TJSONValue);
+          Parse(AReader, LJObj);
+        end;
+      TJsonToken.StartConstructor:
+        ;
+      TJsonToken.PropertyName:
+        begin
+          lPropertyName := AReader.Value.ToString;
+
+        end;
+      TJsonToken.Comment:
+        ;
+      TJsonToken.Raw:
+        ;
+      TJsonToken.Integer:
+        ;
+      TJsonToken.Float:
+        ;
+      TJsonToken.String:
+        begin
+          AJObj.AddPair(lPropertyName, TJSONString.Create(AReader.Value.AsType<string>));
+        end;
+      TJsonToken.Boolean:
+        ;
+      TJsonToken.Null:
+        ;
+      TJsonToken.Undefined:
+        ;
+      TJsonToken.EndObject:
+        Exit;
+      TJsonToken.EndArray:
+        ;
+      TJsonToken.EndConstructor:
+        ;
+      TJsonToken.Date:
+        ;
+      TJsonToken.Bytes:
+        ;
+      TJsonToken.Oid:
+        ;
+      TJsonToken.RegEx:
+        ;
+      TJsonToken.DBRef:
+        ;
+      TJsonToken.CodeWScope:
+        ;
+      TJsonToken.MinKey:
+        ;
+      TJsonToken.MaxKey:
+        ;
+    end;
+  end;
 end;
 
 end.
