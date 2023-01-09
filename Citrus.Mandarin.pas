@@ -192,6 +192,7 @@ type
       const AIsSyncMode: Boolean = True); reintroduce;
     procedure ExecuteSync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
     procedure ExecuteAsync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
+    function Deserialize<T>(const AData: string): T;
     constructor Create; override;
     destructor Destroy; override;
     property Serializer: TJsonSerializer read FSerializer write FSerializer;
@@ -233,7 +234,7 @@ type
     class procedure Synchronize(const AThread: TThread; AThreadProc: TProc);
   end;
 
-  {TMandarin}
+  { TMandarin }
 function TMandarin.AddQueryParameter(const AName, AValue: string): IMandarin;
 begin
   FQueryParameters.AddOrSetValue(AName, AValue);
@@ -333,7 +334,7 @@ begin
   FUrl := Value;
 end;
 
-{TMandarinBody}
+{ TMandarinBody }
 function TMandarinBody.AddJsonPair(const AName, AValue: string): TMandarinBody;
 var
   LJson: TJSONObject;
@@ -396,7 +397,7 @@ begin
       end);
 end;
 
-{TMandarinClient}
+{ TMandarinClient }
 constructor TMandarinClient.Create;
 begin
   inherited;
@@ -512,7 +513,7 @@ begin
     var
       LData: T;
     begin
-      LData := FSerializer.Deserialize<T>(DoReadContent(AHttp));
+      LData := Deserialize<T>(DoReadContent(AHttp));
       if Assigned(AResponseCallback) then
         AResponseCallback(LData, AHttp);
     end);
@@ -525,7 +526,7 @@ begin
     var
       LData: T;
     begin
-      LData := FSerializer.Deserialize<T>(DoReadContent(AHttp));
+      LData := Deserialize<T>(DoReadContent(AHttp));
       if Assigned(AResponseCallback) then
         AResponseCallback(LData, AHttp);
     end);
@@ -541,7 +542,12 @@ begin
   Result := TMandarinExtJson<T>.Create(Self, ABaseUrl);
 end;
 
-{TMandarinExt}
+function TMandarinClientJson.Deserialize<T>(const AData: string): T;
+begin
+  Result := FSerializer.Deserialize<T>(AData);
+end;
+
+{ TMandarinExt }
 function TMandarinExt.AddHeader(const AName, AValue: string): IMandarinExt;
 begin
   inherited AddHeader(AName, AValue);
@@ -662,7 +668,7 @@ begin
   Result := Self;
 end;
 
-{TMandarinLongPooling}
+{ TMandarinLongPooling }
 constructor TMandarinLongPooling.Create(AClient: TMandarinClient);
 begin
   inherited Create;

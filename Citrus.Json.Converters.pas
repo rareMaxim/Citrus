@@ -75,26 +75,25 @@ end;
 function TJsonToJsonObjectConverter.ReadJson(const AReader: TJsonReader; ATypeInf: PTypeInfo;
   const AExistingValue: TValue; const ASerializer: TJsonSerializer): TValue;
 var
-  x: TJsonReaderToValue;
-  res: TJSONObject;
-  xx: string;
+  List: TJSONObject;
 begin
-  x := TJsonReaderToValue.Create;
-  try
-    res := TJSONObject.Create;
-    x.Parse(AReader, res);
-    xx := res.ToJSON;
-    Writeln(xx);
-  finally
-    x.Free;
+  if AReader.TokenType = TJsonToken.Null then
+    Result := nil
+  else
+  begin
+    if AExistingValue.IsEmpty then
+      List := TJSONObject.Create
+    else
+      List := AExistingValue.AsType<TJSONObject>;
+    TJsonReaderToValue.Parse(AReader, List);
+    Result := TValue.From(List);
   end;
 end;
 
 procedure TJsonToJsonObjectConverter.WriteJson(const AWriter: TJsonWriter; const AValue: TValue;
   const ASerializer: TJsonSerializer);
 begin
-  inherited;
-
+  AWriter.WriteValue(AValue.AsType<TJSONObject>.ToJSON);
 end;
 
 { TJsonReaderToValue }
@@ -102,73 +101,38 @@ end;
 class procedure TJsonReaderToValue.Parse(AReader: TJsonReader; var AJObj: TJSONObject);
 var
   lPropertyName: string;
+  LJsonObject: TJSONObject;
 begin
   while AReader.Read do
   begin
-    Writeln(Format('[%d %d]: %s', [AReader.LineNumber, AReader.GetLinePosition, AReader.Path]));
     case AReader.TokenType of
-      TJsonToken.None:
-        ;
       TJsonToken.StartObject:
         begin
-          var
-          LJObj := AJObj.AddPair(lPropertyName, TJSONObject.Create as TJSONValue);
-          Parse(AReader, LJObj);
+          LJsonObject := AJObj.AddPair(lPropertyName, TJSONObject.Create as TJSONValue);
+          Parse(AReader, LJsonObject);
         end;
       TJsonToken.StartArray:
         begin
-          var
-          LJObj := AJObj.AddPair(lPropertyName, TJSONArray.Create as TJSONValue);
-          Parse(AReader, LJObj);
+          LJsonObject := AJObj.AddPair(lPropertyName, TJSONArray.Create as TJSONValue);
+          Parse(AReader, LJsonObject);
         end;
-      TJsonToken.StartConstructor:
-        ;
       TJsonToken.PropertyName:
-        begin
-          lPropertyName := AReader.Value.ToString;
-
-        end;
-      TJsonToken.Comment:
-        ;
-      TJsonToken.Raw:
-        ;
-      TJsonToken.Integer:
-        ;
-      TJsonToken.Float:
-        ;
+        lPropertyName := AReader.Value.ToString;
       TJsonToken.String:
-        begin
-          AJObj.AddPair(lPropertyName, TJSONString.Create(AReader.Value.AsType<string>));
-        end;
+        AJObj.AddPair(lPropertyName, TJSONString.Create(AReader.Value.AsType<string>));
       TJsonToken.Boolean:
-        ;
+        AJObj.AddPair(lPropertyName, TJSONBool.Create(AReader.Value.AsType<Boolean>));
+      TJsonToken.Integer:
+        AJObj.AddPair(lPropertyName, TJSONNumber.Create(AReader.Value.AsType<Integer>));
       TJsonToken.Null:
-        ;
-      TJsonToken.Undefined:
-        ;
-      TJsonToken.EndObject:
+        AJObj.AddPair(lPropertyName, TJSONNull.Create());
+      TJsonToken.EndObject, TJsonToken.EndArray:
         Exit;
-      TJsonToken.EndArray:
-        ;
-      TJsonToken.EndConstructor:
-        ;
-      TJsonToken.Date:
-        ;
-      TJsonToken.Bytes:
-        ;
-      TJsonToken.Oid:
-        ;
-      TJsonToken.RegEx:
-        ;
-      TJsonToken.DBRef:
-        ;
-      TJsonToken.CodeWScope:
-        ;
-      TJsonToken.MinKey:
-        ;
-      TJsonToken.MaxKey:
-        ;
+    else
+      raise EJsonException.CreateFmt('[%d %d %s]: %s', [AReader.LineNumber, AReader.LinePosition,
+        TRttiEnumerationType.GetName<TJsonToken>(AReader.TokenType), AReader.Path]);
     end;
+
   end;
 end;
 
