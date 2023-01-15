@@ -21,16 +21,15 @@ implementation
 uses
   System.SysUtils;
 
+{ TJwtAuthenticator }
 procedure TJwtAuthenticator.SetAccessToken(const Value: string);
 begin
   FAccessToken := Value;
 end;
 
-{ TJwtAuthenticator }
-
 procedure TJwtAuthenticator.UpgradeMandarin(AMandarin: IMandarin);
 begin
-  if not AccessToken.isempty then
+  if not AccessToken.IsEmpty then
     AMandarin.AddHeader('Authorization', 'Bearer ' + AccessToken);
 end;
 
