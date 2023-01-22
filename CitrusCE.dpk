@@ -35,6 +35,8 @@ contains
   Citrus.Lime in 'Citrus.Lime.pas',
   Citrus.Mandarin in 'Citrus.Mandarin.pas',
   Citrus.Types in 'Citrus.Types.pas',
-  Citrus.Authenticator.JWT in 'Citrus.Authenticator.JWT.pas';
+  Citrus.Authenticator.JWT in 'Citrus.Authenticator.JWT.pas',
+  Citrus.ThreadTimer in 'Citrus.ThreadTimer.pas',
+  Citrus.JObject in 'Citrus.JObject.pas';
 
 end.

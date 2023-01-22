@@ -132,7 +132,6 @@ begin
       raise EJsonException.CreateFmt('[%d %d %s]: %s', [AReader.LineNumber, AReader.LinePosition,
         TRttiEnumerationType.GetName<TJsonToken>(AReader.TokenType), AReader.Path]);
     end;
-
   end;
 end;
 

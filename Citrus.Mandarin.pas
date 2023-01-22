@@ -142,6 +142,26 @@ type
       write FOnReadContentCallback;
   end;
 
+  TMandarinClientGroupe = class
+  private
+    FMandarinClient: TMandarinClient;
+    FMandarinList: TList<IMandarin>;
+    FResponseList: TList<IHTTPResponse>;
+    FOnResponse: TProc<TArray<IHTTPResponse>>;
+  protected
+    procedure DoRun(const IsAsyncMode: Boolean);
+    procedure DoCallEndCallback;
+  public
+    constructor Create(AMandarinClient: TMandarinClient);
+    destructor Destroy; override;
+    procedure ExecuteAsyncGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc < TArray < IHTTPResponse >>
+      ); virtual;
+    procedure ExecuteSyncGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc < TArray < IHTTPResponse >>
+      ); virtual;
+    procedure ExecuteGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc<TArray<IHTTPResponse>>;
+      const IsAsyncMode: Boolean); virtual;
+  end;
+
   IMandarinExtJson<T> = interface(IMandarin)
     ['{0668D619-DEC1-4713-AEFF-A89F0BB67CC1}']
     procedure Execute(AResponseCallback: TProc<T, IHTTPResponse>; const AIsSyncMode: Boolean = True);
@@ -243,7 +263,7 @@ end;
 
 function TMandarin.AddUrlSegment(const AName, AValue: string): IMandarin;
 begin
-  FUrlSegments.AddOrSetValue(AName, AValue);
+  FUrlSegments.Add(AName, AValue);
   Result := Self;
 end;
 
@@ -720,6 +740,63 @@ begin
   if Assigned(FWorker) then
     FWorker.WaitFor;
   FreeAndNil(FWorker);
+end;
+
+constructor TMandarinClientGroupe.Create(AMandarinClient: TMandarinClient);
+begin
+  inherited Create;
+  FMandarinClient := AMandarinClient;
+  FMandarinList := TList<IMandarin>.Create();
+  FResponseList := TList<IHTTPResponse>.Create();
+end;
+
+destructor TMandarinClientGroupe.Destroy;
+begin
+  FResponseList.Free;
+  FMandarinList.Free;
+  inherited Destroy;
+end;
+
+procedure TMandarinClientGroupe.DoCallEndCallback;
+begin
+  if Assigned(FOnResponse) then
+    FOnResponse(FResponseList.ToArray);
+end;
+
+procedure TMandarinClientGroupe.DoRun(const IsAsyncMode: Boolean);
+begin
+  if FMandarinList.Count = 0 then
+    Exit; //?
+  FMandarinClient.Execute(FMandarinList.First,
+    procedure(AHttpResponse: IHTTPResponse)
+    begin
+      FResponseList.Add(AHttpResponse);
+      FMandarinList.Delete(0);
+      if FMandarinList.Count = 0 then
+        DoCallEndCallback
+      else
+        DoRun(IsAsyncMode);
+    end, not IsAsyncMode);
+end;
+
+procedure TMandarinClientGroupe.ExecuteAsyncGroup(AMandarins: TArray<IMandarin>;
+AResponseCallback: TProc < TArray < IHTTPResponse >> );
+begin
+  ExecuteGroup(AMandarins, AResponseCallback, True);
+end;
+
+procedure TMandarinClientGroupe.ExecuteGroup(AMandarins: TArray<IMandarin>;
+AResponseCallback: TProc<TArray<IHTTPResponse>>; const IsAsyncMode: Boolean);
+begin
+  FOnResponse := AResponseCallback;
+  FMandarinList.AddRange(AMandarins);
+  DoRun(IsAsyncMode);
+end;
+
+procedure TMandarinClientGroupe.ExecuteSyncGroup(AMandarins: TArray<IMandarin>;
+AResponseCallback: TProc < TArray < IHTTPResponse >> );
+begin
+  ExecuteGroup(AMandarins, AResponseCallback, False);
 end;
 
 end.
