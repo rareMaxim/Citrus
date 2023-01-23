@@ -27,6 +27,7 @@ type
     constructor Create;
     destructor Destroy; override;
     function ToObject<T>: T;
+    function ToJson: string;
   end;
 
   TJObjectConfig = class
@@ -63,9 +64,14 @@ end;
 
 { TJObject }
 
+function TJObject.ToJson: string;
+begin
+  Result := FJsonObject.Format();
+end;
+
 function TJObject.ToObject<T>: T;
 begin
-  Result := TJObjectConfig.Current.Serializer.Deserialize<T>(FJsonObject.ToJSON);
+  Result := TJObjectConfig.Current.Serializer.Deserialize<T>(FJsonObject.ToJson);
 end;
 
 { TJObjectConfig }
@@ -120,7 +126,7 @@ end;
 procedure TJObjectConverter.WriteJson(const AWriter: TJsonWriter; const AValue: TValue;
   const ASerializer: TJsonSerializer);
 begin
-  AWriter.WriteValue(AValue.AsType<TJObject>.FJsonObject.ToJSON);
+  AWriter.WriteValue(AValue.AsType<TJObject>.FJsonObject.ToJson);
 end;
 
 end.
