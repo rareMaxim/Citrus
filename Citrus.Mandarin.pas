@@ -45,6 +45,7 @@ type
     function AddHeader(const AName, AValue: string): IMandarin;
     function AddQueryParameter(const AName, AValue: string): IMandarin;
     function AddUrlSegment(const AName, AValue: string): IMandarin;
+    function GetUrlSegment(const AName: string): string;
 
     property RequestMethod: string read GetRequestMethod write SetRequestMethod;
     property Url: string read GetUrl write SetUrl;
@@ -81,6 +82,7 @@ type
     function AddHeader(const AName, AValue: string): IMandarin;
     function AddQueryParameter(const AName, AValue: string): IMandarin;
     function AddUrlSegment(const AName, AValue: string): IMandarin;
+    function GetUrlSegment(const AName: string): string;
     property Url: string read GetUrl write SetUrl;
     property Headers: TDictionary<string, string> read FHeaders;
     property UrlSegments: TDictionary<string, string> read FUrlSegments;
@@ -209,7 +211,9 @@ type
     function NewMandarin(const ABaseUrl: string = ''): IMandarinExt; overload;
     function NewMandarin<T>(const ABaseUrl: string = ''): IMandarinExtJson<T>; overload;
     procedure Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>;
-      const AIsSyncMode: Boolean = True); reintroduce;
+      const AIsSyncMode: Boolean = True); overload;
+    procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>; const AIsSyncMode: Boolean = True);
+      overload; virtual;
     procedure ExecuteSync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
     procedure ExecuteAsync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
     function Deserialize<T>(const AData: string): T;
@@ -320,6 +324,12 @@ end;
 function TMandarin.GetUrl: string;
 begin
   Result := FUrl;
+end;
+
+function TMandarin.GetUrlSegment(const AName: string): string;
+begin
+  if not FUrlSegments.TryGetValue(AName, Result) then
+    Result := '';
 end;
 
 procedure TMandarin.SetRequestMethod(const Value: string);
@@ -482,7 +492,6 @@ begin
   if Assigned(OnBeforeExcecute) then
     OnBeforeExcecute(AMandarin);
   LHttpRequest := AMandarin.BuildRequest(FHttp);
-
   try
     LHttpResponse := FHttp.Execute(LHttpRequest);
     if Assigned(AResponseCallback) then
@@ -490,7 +499,6 @@ begin
   finally
     LHttpRequest.SourceStream.Free;
   end;
-
 end;
 
 function TMandarinClient.NewMandarin(const ABaseUrl: string = ''): IMandarinExt;
@@ -517,8 +525,14 @@ begin
   inherited;
 end;
 
+procedure TMandarinClientJson.Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
+const AIsSyncMode: Boolean = True);
+begin
+  inherited Execute(AMandarin, AResponseCallback, AIsSyncMode);
+end;
+
 procedure TMandarinClientJson.Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>;
-const AIsSyncMode: Boolean);
+const AIsSyncMode: Boolean = True);
 begin
   if AIsSyncMode then
     ExecuteSync<T>(AMandarin, AResponseCallback)
