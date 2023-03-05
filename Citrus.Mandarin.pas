@@ -14,23 +14,23 @@ uses
 
 type
 {$SCOPEDENUMS ON}
-  TMandarinBodyType = (None, Raw);
+  TMandarinBodyType = (None, Raw, JSON);
 {$SCOPEDENUMS OFF}
   IHTTPResponse = System.Net.HttpClient.IHTTPResponse;
 
   TMandarinBody = class
   private
     FRaw: string;
-    FType: TMandarinBodyType;
-    procedure SetRaw(const Value: string);
+    FJSON: TJSONObject;
   protected
     procedure UpgradeHttpRequest(var ARequest: IHTTPRequest);
-    procedure BuildRaw(var ARequest: IHTTPRequest);
+    procedure BuildRaw(const AData: string; var ARequest: IHTTPRequest);
   public
     constructor Create;
-    function AddJsonPair(const AName, AValue: string): TMandarinBody;
-    property Raw: string read FRaw write SetRaw;
-    property &Type: TMandarinBodyType read FType write FType;
+    destructor Destroy; override;
+    function BodyType: TMandarinBodyType;
+    property Raw: string read FRaw write FRaw;
+    property JSON: TJSONObject read FJSON write FJSON;
   end;
 
   IMandarin = interface
@@ -76,8 +76,7 @@ type
     procedure SetupQueryParameters(var AUrl: string);
     function BuildRequest(AHttpCli: THttpClient): IHTTPRequest;
   public
-    constructor Create(const AUrl: string); overload;
-    constructor Create; overload;
+    constructor Create(const AUrl: string = ''); overload;
     destructor Destroy; override;
     function AddHeader(const AName, AValue: string): IMandarin;
     function AddQueryParameter(const AName, AValue: string): IMandarin;
@@ -173,7 +172,6 @@ type
     function AddHeader(const AName, AValue: string): IMandarinExtJson<T>;
     function AddQueryParameter(const AName, AValue: string): IMandarinExtJson<T>;
     function AddUrlSegment(const AName, AValue: string): IMandarinExtJson<T>;
-    function AddJsonPair(const AName, AValue: string): IMandarinExtJson<T>;
     function SetBody(ABody: TObject): IMandarinExtJson<T>;
     function SetBodyRaw(const AValue: string): IMandarinExtJson<T>;
     function SetRequestMethod(const AValue: string): IMandarinExtJson<T>;
@@ -193,15 +191,9 @@ type
     function AddHeader(const AName, AValue: string): IMandarinExtJson<T>;
     function AddQueryParameter(const AName, AValue: string): IMandarinExtJson<T>;
     function AddUrlSegment(const AName, AValue: string): IMandarinExtJson<T>;
-    function AddJsonPair(const AName, AValue: string): IMandarinExtJson<T>;
     function SetBodyRaw(const AValue: string): IMandarinExtJson<T>;
     function SetRequestMethod(const AValue: string): IMandarinExtJson<T>;
     function SetBody(ABody: TObject): IMandarinExtJson<T>;
-  end;
-
-  IMandarinBuider = interface
-    ['{D2AD2C5B-D245-48A7-8EF3-E3E959FA966B}']
-    function Build: IMandarin;
   end;
 
   TMandarinClientJson = class(TMandarinClient)
@@ -211,9 +203,9 @@ type
     function NewMandarin(const ABaseUrl: string = ''): IMandarinExt; overload;
     function NewMandarin<T>(const ABaseUrl: string = ''): IMandarinExtJson<T>; overload;
     procedure Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>;
-      const AIsSyncMode: Boolean = True); overload;
+      const AIsSyncMode: Boolean = True); reintroduce; overload;
     procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>; const AIsSyncMode: Boolean = True);
-      overload; virtual;
+      reintroduce; overload; virtual;
     procedure ExecuteSync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
     procedure ExecuteAsync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
     function Deserialize<T>(const AData: string): T;
@@ -252,13 +244,7 @@ implementation
 uses
   System.Types;
 
-type
-  TMandarinTools = class
-  public
-    class procedure Synchronize(const AThread: TThread; AThreadProc: TProc);
-  end;
-
-  { TMandarin }
+{ TMandarin }
 function TMandarin.AddQueryParameter(const AName, AValue: string): IMandarin;
 begin
   FQueryParameters.AddOrSetValue(AName, AValue);
@@ -276,16 +262,20 @@ begin
   SetupUrlSegments(FUrl);
   SetupQueryParameters(FUrl);
   Result := AHttpCli.GetRequest(FRequestMethod, FUrl);
-  FBody.UpgradeHttpRequest(Result);
+  case FBody.BodyType of
+    TMandarinBodyType.Raw:
+      FBody.UpgradeHttpRequest(Result);
+    TMandarinBodyType.JSON:
+      begin
+        FBody.UpgradeHttpRequest(Result);
+        AddHeader('Content-Type', 'application/json');
+      end;
+  end;
+
   SetupHeaders(Result);
 end;
 
-constructor TMandarin.Create;
-begin
-  Self.Create('');
-end;
-
-constructor TMandarin.Create(const AUrl: string);
+constructor TMandarin.Create(const AUrl: string = '');
 begin
   inherited Create;
   FUrl := AUrl;
@@ -365,66 +355,43 @@ begin
 end;
 
 { TMandarinBody }
-function TMandarinBody.AddJsonPair(const AName, AValue: string): TMandarinBody;
-var
-  LJson: TJSONObject;
-begin
-  FType := TMandarinBodyType.Raw;
-  LJson := TJSONObject.ParseJSONValue(FRaw) as TJSONObject;
-  if LJson = nil then
-    LJson := TJSONObject.Create;
-  try
-    LJson.AddPair(AName, AValue);
-    FRaw := LJson.ToJSON;
-  finally
-    LJson.Free;
-  end;
-  Result := Self;
-end;
 
-procedure TMandarinBody.BuildRaw(var ARequest: IHTTPRequest);
+procedure TMandarinBody.BuildRaw(const AData: string; var ARequest: IHTTPRequest);
 begin
-  if not FRaw.IsEmpty then
-    ARequest.SourceStream := TStringStream.Create(UTF8String(FRaw));
+  ARequest.SourceStream := TStringStream.Create(UTF8String(AData));
 end;
 
 constructor TMandarinBody.Create;
 begin
   inherited Create();
   FRaw := '';
-  FType := TMandarinBodyType.None;
+  FJSON := TJSONObject.Create();
 end;
 
-procedure TMandarinBody.SetRaw(const Value: string);
+destructor TMandarinBody.Destroy;
 begin
-  FRaw := Value;
-  FType := TMandarinBodyType.Raw;
+  FJSON.Free;
+  inherited Destroy;
+end;
+
+function TMandarinBody.BodyType: TMandarinBodyType;
+begin
+  if not FRaw.IsEmpty then
+    Result := TMandarinBodyType.Raw
+  else if FJSON.Count > 0 then
+    Result := TMandarinBodyType.JSON
+  else
+    Result := TMandarinBodyType.None;
 end;
 
 procedure TMandarinBody.UpgradeHttpRequest(var ARequest: IHTTPRequest);
 begin
-  case FType of
-    TMandarinBodyType.None:
-      ;
+  case BodyType of
+    TMandarinBodyType.JSON:
+      BuildRaw(JSON.ToJSON, ARequest);
     TMandarinBodyType.Raw:
-      BuildRaw(ARequest);
-  else
-    raise ENotImplemented.Create('UpgradeHttpRequest');
+      BuildRaw(Raw, ARequest);
   end;
-end;
-
-{ TMandarinTools }
-
-class procedure TMandarinTools.Synchronize(const AThread: TThread; AThreadProc: TProc);
-begin
-  if IsConsole then
-    AThreadProc()
-  else
-    TThread.Synchronize(AThread,
-      procedure
-      begin
-        AThreadProc();
-      end);
 end;
 
 { TMandarinClient }
@@ -450,7 +417,7 @@ begin
 end;
 
 procedure TMandarinClient.Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
-const AIsSyncMode: Boolean = True);
+  const AIsSyncMode: Boolean = True);
 begin
   if AIsSyncMode then
     ExecuteSync(AMandarin, AResponseCallback)
@@ -632,12 +599,6 @@ end;
 function TMandarinExtJson<T>.AddHeader(const AName, AValue: string): IMandarinExtJson<T>;
 begin
   inherited AddHeader(AName, AValue);
-  Result := Self;
-end;
-
-function TMandarinExtJson<T>.AddJsonPair(const AName, AValue: string): IMandarinExtJson<T>;
-begin
-  Body.AddJsonPair(AName, AValue);
   Result := Self;
 end;
 

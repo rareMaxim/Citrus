@@ -102,7 +102,7 @@ end;
 
 function TJObjectConverter.CanConvert(ATypeInf: PTypeInfo): Boolean;
 begin
-  Result := ATypeInf.Name = TJObject.ClassName;
+  Result := string(ATypeInf.Name) = TJObject.ClassName;
 end;
 
 function TJObjectConverter.ReadJson(const AReader: TJsonReader; ATypeInf: PTypeInfo; const AExistingValue: TValue;
