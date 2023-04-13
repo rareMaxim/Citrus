@@ -10,7 +10,7 @@ uses
   System.JSON,
   System.JSON.Serializers,
   System.SyncObjs,
-  System.SysUtils;
+  System.SysUtils, Citrus.SimpleLog;
 
 type
 {$SCOPEDENUMS ON}
@@ -125,10 +125,13 @@ type
     FOnBeforeExcecute: TProc<IMandarin>;
     FAuthenticator: IAuthenticator;
     FOnReadContentCallback: TFunc<IHTTPResponse, string>;
+    FOnLog: TProc<TLogInfo>;
     procedure SetAuthenticator(const Value: IAuthenticator);
   protected
     function DoReadContent(AHttpResponse: IHTTPResponse): string;
+
   public
+    procedure DoOnLog(ALog: TLogInfo); overload;
     procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
       const AIsSyncMode: Boolean = True); virtual;
     procedure ExecuteSync(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>); virtual;
@@ -141,6 +144,7 @@ type
     property OnBeforeExcecute: TProc<IMandarin> read FOnBeforeExcecute write FOnBeforeExcecute;
     property OnReadContentCallback: TFunc<IHTTPResponse, string> read FOnReadContentCallback
       write FOnReadContentCallback;
+    property OnLog: TProc<TLogInfo> read FOnLog write FOnLog;
   end;
 
   TMandarinClientGroupe = class
@@ -408,6 +412,12 @@ begin
   inherited;
 end;
 
+procedure TMandarinClient.DoOnLog(ALog: TLogInfo);
+begin
+  if Assigned(OnLog) then
+    OnLog(ALog);
+end;
+
 function TMandarinClient.DoReadContent(AHttpResponse: IHTTPResponse): string;
 begin
   if Assigned(OnReadContentCallback) then
@@ -434,6 +444,7 @@ begin
   if Assigned(OnBeforeExcecute) then
     OnBeforeExcecute(AMandarin);
   LHttpRequest := AMandarin.BuildRequest(FHttp);
+
   FHttp.BeginExecute(
     procedure(const ASyncResult: IAsyncResult)
     var

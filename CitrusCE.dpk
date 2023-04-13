@@ -38,6 +38,7 @@ contains
   Citrus.Authenticator.JWT in 'Citrus.Authenticator.JWT.pas',
   Citrus.ThreadTimer in 'Citrus.ThreadTimer.pas',
   Citrus.JObject in 'Citrus.JObject.pas',
-  Citrus.ConfigFile in 'Citrus.ConfigFile.pas';
+  Citrus.ConfigFile in 'Citrus.ConfigFile.pas',
+  Citrus.SimpleLog in 'Citrus.SimpleLog.pas';
 
 end.

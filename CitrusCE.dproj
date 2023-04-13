@@ -103,6 +103,7 @@
         <DCCReference Include="Citrus.ThreadTimer.pas"/>
         <DCCReference Include="Citrus.JObject.pas"/>
         <DCCReference Include="Citrus.ConfigFile.pas"/>
+        <DCCReference Include="Citrus.SimpleLog.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
