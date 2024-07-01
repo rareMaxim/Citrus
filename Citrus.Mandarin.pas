@@ -10,7 +10,8 @@ uses
   System.JSON,
   System.JSON.Serializers,
   System.SyncObjs,
-  System.SysUtils, Citrus.SimpleLog;
+  System.SysUtils,
+  Citrus.SimpleLog;
 
 type
 {$SCOPEDENUMS ON}
@@ -132,8 +133,7 @@ type
 
   public
     procedure DoOnLog(ALog: TLogInfo); overload;
-    procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
-      const AIsSyncMode: Boolean = True); virtual;
+    procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>; const AIsSyncMode: Boolean = True); virtual;
     procedure ExecuteSync(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>); virtual;
     procedure ExecuteAsync(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>); virtual;
     function NewMandarin(const ABaseUrl: string = ''): IMandarinExt; overload;
@@ -142,8 +142,7 @@ type
     property Http: THttpClient read FHttp write FHttp;
     property Authenticator: IAuthenticator read FAuthenticator write SetAuthenticator;
     property OnBeforeExcecute: TProc<IMandarin> read FOnBeforeExcecute write FOnBeforeExcecute;
-    property OnReadContentCallback: TFunc<IHTTPResponse, string> read FOnReadContentCallback
-      write FOnReadContentCallback;
+    property OnReadContentCallback: TFunc<IHTTPResponse, string> read FOnReadContentCallback write FOnReadContentCallback;
     property OnLog: TProc<TLogInfo> read FOnLog write FOnLog;
   end;
 
@@ -159,10 +158,8 @@ type
   public
     constructor Create(AMandarinClient: TMandarinClient);
     destructor Destroy; override;
-    procedure ExecuteAsyncGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc < TArray < IHTTPResponse >>
-      ); virtual;
-    procedure ExecuteSyncGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc < TArray < IHTTPResponse >>
-      ); virtual;
+    procedure ExecuteAsyncGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc < TArray < IHTTPResponse >> ); virtual;
+    procedure ExecuteSyncGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc < TArray < IHTTPResponse >> ); virtual;
     procedure ExecuteGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc<TArray<IHTTPResponse>>;
       const IsAsyncMode: Boolean); virtual;
   end;
@@ -206,10 +203,10 @@ type
   public
     function NewMandarin(const ABaseUrl: string = ''): IMandarinExt; overload;
     function NewMandarin<T>(const ABaseUrl: string = ''): IMandarinExtJson<T>; overload;
-    procedure Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>;
-      const AIsSyncMode: Boolean = True); reintroduce; overload;
-    procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>; const AIsSyncMode: Boolean = True);
-      reintroduce; overload; virtual;
+    procedure Execute<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>; const AIsSyncMode: Boolean = True);
+      reintroduce; overload;
+    procedure Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>; const AIsSyncMode: Boolean = True); reintroduce;
+      overload; virtual;
     procedure ExecuteSync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
     procedure ExecuteAsync<T>(AMandarin: IMandarin; AResponseCallback: TProc<T, IHTTPResponse>); reintroduce;
     function Deserialize<T>(const AData: string): T;
@@ -426,8 +423,7 @@ begin
     Result := AHttpResponse.ContentAsString(TEncoding.UTF8);
 end;
 
-procedure TMandarinClient.Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
-  const AIsSyncMode: Boolean = True);
+procedure TMandarinClient.Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>; const AIsSyncMode: Boolean = True);
 begin
   if AIsSyncMode then
     ExecuteSync(AMandarin, AResponseCallback)
@@ -503,8 +499,7 @@ begin
   inherited;
 end;
 
-procedure TMandarinClientJson.Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>;
-const AIsSyncMode: Boolean = True);
+procedure TMandarinClientJson.Execute(AMandarin: IMandarin; AResponseCallback: TProc<IHTTPResponse>; const AIsSyncMode: Boolean = True);
 begin
   inherited Execute(AMandarin, AResponseCallback, AIsSyncMode);
 end;
@@ -752,7 +747,7 @@ end;
 procedure TMandarinClientGroupe.DoRun(const IsAsyncMode: Boolean);
 begin
   if FMandarinList.Count = 0 then
-    Exit; //?
+    Exit; // ?
   FMandarinClient.Execute(FMandarinList.First,
     procedure(AHttpResponse: IHTTPResponse)
     begin
@@ -765,22 +760,20 @@ begin
     end, not IsAsyncMode);
 end;
 
-procedure TMandarinClientGroupe.ExecuteAsyncGroup(AMandarins: TArray<IMandarin>;
-AResponseCallback: TProc < TArray < IHTTPResponse >> );
+procedure TMandarinClientGroupe.ExecuteAsyncGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc < TArray < IHTTPResponse >> );
 begin
   ExecuteGroup(AMandarins, AResponseCallback, True);
 end;
 
-procedure TMandarinClientGroupe.ExecuteGroup(AMandarins: TArray<IMandarin>;
-AResponseCallback: TProc<TArray<IHTTPResponse>>; const IsAsyncMode: Boolean);
+procedure TMandarinClientGroupe.ExecuteGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc<TArray<IHTTPResponse>>;
+const IsAsyncMode: Boolean);
 begin
   FOnResponse := AResponseCallback;
   FMandarinList.AddRange(AMandarins);
   DoRun(IsAsyncMode);
 end;
 
-procedure TMandarinClientGroupe.ExecuteSyncGroup(AMandarins: TArray<IMandarin>;
-AResponseCallback: TProc < TArray < IHTTPResponse >> );
+procedure TMandarinClientGroupe.ExecuteSyncGroup(AMandarins: TArray<IMandarin>; AResponseCallback: TProc < TArray < IHTTPResponse >> );
 begin
   ExecuteGroup(AMandarins, AResponseCallback, False);
 end;
